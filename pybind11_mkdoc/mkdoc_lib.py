@@ -295,8 +295,17 @@ def read_args(args):
 
             parameters.extend(['-isystem', clang_include_dir])
 
-        parameters.extend(['-isystem', '/usr/include/%s-linux-gnu' % platform.machine(),
-                           '-isystem', '/usr/include'])
+            parameters.extend(['-isystem', '/usr/include/%s-linux-gnu' % platform.machine(),
+                               '-isystem', '/usr/include'])
+        else:
+            clang_include_dir = max((
+                path
+                for libdir in ['lib64', 'lib', 'lib32']
+                for path in glob('/usr/%s/clang/*/include' % libdir)
+                if os.path.isdir(path)
+            ), default=None, key=folder_version)
+            if clang_include_dir:
+                parameters.extend(['-isystem', clang_include_dir])
 
     for item in args:
         if item.startswith('-'):
