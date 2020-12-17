@@ -80,7 +80,7 @@ def sanitize_name(name):
         name = name.replace('operator%s' % k, 'operator_%s' % v)
     name = re.sub('<.*>', '', name)
     name = ''.join([ch if ch.isalnum() else '_' for ch in name])
-    name = re.sub('_$', '', re.sub('_+', '_', name))
+    name = re.sub('_$', '', name)
     return '__doc_' + name
 
 
