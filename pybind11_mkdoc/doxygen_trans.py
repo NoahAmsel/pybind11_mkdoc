@@ -2,6 +2,10 @@ import re
 import warnings
 from itertools import chain
 
+def warning_on_one_line(message, category, filename, lineno, file=None, line=None):
+    return ' %s:%s: %s:%s\n' % (filename, lineno, category.__name__, message)
+warnings.formatwarning = warning_on_one_line
+
 class DoxygenCommand:
     def __init__(self, tag, *synonyms):
         self.tag = tag
@@ -149,7 +153,7 @@ class ParamSection(DoxygenLabeledSection):
 class DoxygenUnsupportedCommandMixin:
     def warn_if_present(self, result, count):
         if count > 0:
-            warnings.warn("Unsupported Doxygen command detected: \\{tag} or @{tag}".format(tag=self.tag))
+            warnings.warn("Unsupported Doxygen command detected: \\{tag} or @{tag}".format(tag=self.tag), stacklevel=3)
         return result, count
 
 class DoxygenUnsupportedSection(DoxygenSection, DoxygenUnsupportedCommandMixin):
