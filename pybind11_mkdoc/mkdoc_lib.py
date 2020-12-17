@@ -19,6 +19,8 @@ from glob import glob
 from threading import Thread, Semaphore
 from multiprocessing import cpu_count
 
+from .doxygen_trans import DoxygenTranslator
+
 RECURSE_LIST = [
     CursorKind.TRANSLATION_UNIT,
     CursorKind.NAMESPACE,
@@ -101,96 +103,18 @@ def process_comment(comment):
             leading_spaces = min(leading_spaces, len(s) - len(s.lstrip()))
         result += s + '\n'
 
+    # can TextWrap.dedent help here?
     if leading_spaces != float('inf'):
         result2 = ""
         for s in result.splitlines():
             result2 += s[leading_spaces:] + '\n'
         result = result2
 
-    # Doxygen tags
-    cpp_group = r'([\w:]+)'
-    param_group = r'([\[\w:,\]]+)'
-
-    s = result
-    s = re.sub(r'[\\@]c\s+%s' % cpp_group, r'``\1``', s)
-    s = re.sub(r'[\\@]a\s+%s' % cpp_group, r'*\1*', s)
-    s = re.sub(r'[\\@]e\s+%s' % cpp_group, r'*\1*', s)
-    s = re.sub(r'[\\@]em\s+%s' % cpp_group, r'*\1*', s)
-    s = re.sub(r'[\\@]b\s+%s' % cpp_group, r'**\1**', s)
-    s = re.sub(r'[\\@]ingroup\s+%s' % cpp_group, r'', s)
-    s = re.sub(r'[\\@]param%s?\s+%s' % (param_group, cpp_group),
-               r'\n\n$Parameter ``\2``:\n\n', s)
-    s = re.sub(r'[\\@]tparam%s?\s+%s' % (param_group, cpp_group),
-               r'\n\n$Template parameter ``\2``:\n\n', s)
-
-    for in_, out_ in {
-        'return': 'Returns',
-        'author': 'Author',
-        'authors': 'Authors',
-        'copyright': 'Copyright',
-        'date': 'Date',
-        'remark': 'Remark',
-        'sa': 'See also',
-        'see': 'See also',
-        'extends': 'Extends',
-        'throw': 'Throws',
-        'throws': 'Throws'
-    }.items():
-        s = re.sub(r'[\\@]%s\s*' % in_, r'\n\n$%s:\n\n' % out_, s)
-
-    s = re.sub(r'[\\@]details\s*', r'\n\n', s)
-    s = re.sub(r'[\\@]brief\s*', r'', s)
-    s = re.sub(r'[\\@]short\s*', r'', s)
-    s = re.sub(r'[\\@]ref\s*', r'', s)
-
-    s = re.sub(r'[\\@]code\s?(.*?)\s?[\\@]endcode',
-               r"```\n\1\n```\n", s, flags=re.DOTALL)
-
-    # HTML/TeX tags
-    s = re.sub(r'<tt>(.*?)</tt>', r'``\1``', s, flags=re.DOTALL)
-    s = re.sub(r'<pre>(.*?)</pre>', r"```\n\1\n```\n", s, flags=re.DOTALL)
-    s = re.sub(r'<em>(.*?)</em>', r'*\1*', s, flags=re.DOTALL)
-    s = re.sub(r'<b>(.*?)</b>', r'**\1**', s, flags=re.DOTALL)
-    s = re.sub(r'[\\@]f\$(.*?)[\\@]f\$', r'$\1$', s, flags=re.DOTALL)
-    s = re.sub(r'<li>', r'\n\n* ', s)
-    s = re.sub(r'</?ul>', r'', s)
-    s = re.sub(r'</li>', r'\n\n', s)
-
-    s = s.replace('``true``', '``True``')
-    s = s.replace('``false``', '``False``')
-
-    # Re-flow text
-    wrapper = textwrap.TextWrapper()
-    wrapper.expand_tabs = True
-    wrapper.replace_whitespace = True
-    wrapper.drop_whitespace = True
-    wrapper.width = 70
-    wrapper.initial_indent = wrapper.subsequent_indent = ''
-
-    result = ''
-    in_code_segment = False
-    for x in re.split(r'(```)', s):
-        if x == '```':
-            if not in_code_segment:
-                result += '```\n'
-            else:
-                result += '\n```\n\n'
-            in_code_segment = not in_code_segment
-        elif in_code_segment:
-            result += x.strip()
-        else:
-            for y in re.split(r'(?: *\n *){2,}', x):
-                wrapped = wrapper.fill(re.sub(r'\s+', ' ', y).strip())
-                if len(wrapped) > 0 and wrapped[0] == '$':
-                    result += wrapped[1:] + '\n'
-                    wrapper.initial_indent = \
-                        wrapper.subsequent_indent = ' ' * 4
-                else:
-                    if len(wrapped) > 0:
-                        result += wrapped + '\n\n'
-                    wrapper.initial_indent = wrapper.subsequent_indent = ''
-    return result.rstrip().lstrip('\n')
-
+    translation = DoxygenTranslator(return_includes_type_tag=True)(result)
+    
+    # TODO: Re-flow text without messing up the new format
+    
+    return translation
 
 def extract(filename, node, prefix, output):
     if not (node.location.file is None or
