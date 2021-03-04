@@ -71,10 +71,11 @@ class DoxygenSection(DoxygenCommand):
         { paragraph }
     ```
     """
-    def __init__(self, tag, *synonyms, title=None, indent=' '*4, hidden=False):
+    def __init__(self, tag, *synonyms, title=None, indent=' '*4, next_lines_extra_indent=True, hidden=False):
         self.indent = indent
         super().__init__(tag, *synonyms)
         self.title = title if title else self.tag.capitalize()
+        self.next_lines_extra_indent = next_lines_extra_indent
         self.hidden=hidden
 
     def before_regex(self):
@@ -104,7 +105,8 @@ class DoxygenSection(DoxygenCommand):
                 translation = ""
             else:
                 translation = match.expand(self.after_regex())
-                translation = re.sub(r"\n\s*", r"\n{indent}".format(indent=2*self.indent), translation)
+                next_line_indent = (2 if self.next_lines_extra_indent else 1) * self.indent
+                translation = re.sub(r"\n\s*", r"\n{indent}".format(indent=next_line_indent), translation)
                 if include_title:
                     translation = "\n" + self.title_line() + translation
             return translation, 1
@@ -143,8 +145,8 @@ class DoxygenLabeledSection(DoxygenSection):
         return r'{indent}\g<label>: \g<body>'.format(indent=self.indent)
 
 class ParamSection(DoxygenLabeledSection):
-    def __init__(self, indent=' '*4):
-        super().__init__("param", title="Args", indent=indent)
+    def __init__(self):
+        super().__init__("param", title="Args")
 
     def tag_regex(self):
         # Allows for `@param[in,out] description`. See <https://www.doxygen.nl/manual/commands.html#cmdparam>.
@@ -241,7 +243,7 @@ class DoxygenTranslator:
         # These will be tried in order. If there's a match we skip the rest, so put the most common ones first
         self.section_types = [
             ParamSection(),
-            DoxygenLabeledSection("return", title="Returns") if return_includes_type_tag else DoxygenSection("return", title="Returns"),
+            DoxygenLabeledSection("return", title="Returns", next_lines_extra_indent=False) if return_includes_type_tag else DoxygenSection("return", title="Returns", next_lines_extra_indent=False),
             DoxygenUntitledSection("brief", "short"),
             DoxygenLabeledSection("tparam", title="Type parameter (C++ only)", hidden=hide_tparam),
             DoxygenLabeledSection("retval", title="Returns"),
